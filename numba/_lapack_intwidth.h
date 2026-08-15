@@ -9,18 +9,24 @@
  * the same translation unit) is redirected below to a NB_LAPACK_SUF-suffixed
  * name, so the two instantiations don't collide.
  *
- * Which width is actually correct is a property of the *scipy install*,
- * not of this build: scipy.linalg.cython_blas/cython_lapack are compiled
+ * Which width is *correct* to call through is a property of the scipy
+ * actually installed: scipy.linalg.cython_blas/cython_lapack are compiled
  * for exactly one ABI, LP64 or ILP64, recorded in
  * scipy.__config__.CONFIG['Build Dependencies']['blas']['cython blas
- * ilp64'] (see numba/np/linalg.py:_lapack_is_ilp64()). The raw function
- * pointer fetched from scipy's __pyx_capi__ (in the EMIT_GET_CBLAS_FUNC /
- * EMIT_GET_CLAPACK_FUNC getters, defined once in _lapack.c outside this
- * file and shared between both instantiations) already matches whichever
- * ABI scipy itself was built for; this file only decides how many bytes
- * the *caller* reads/writes through F_INT-typed locals and by-reference
- * arguments when invoking it. numba/np/linalg.py picks, once at import
- * time, which of the two suffixed symbol sets to bind to.
+ * ilp64']. The raw function pointer fetched from scipy's __pyx_capi__ (in
+ * the EMIT_GET_CBLAS_FUNC / EMIT_GET_CLAPACK_FUNC getters, defined once in
+ * _lapack.c outside this file and shared between both instantiations)
+ * already matches whichever ABI scipy itself was built for; this file only
+ * decides how many bytes the *caller* reads/writes through F_INT-typed
+ * locals and by-reference arguments when invoking it.
+ *
+ * Which suffixed symbol set numba/np/linalg.py binds to is fixed at
+ * Numba's own *build* time (see NUMBA_LAPACK_ILP64 in setup.py and
+ * numba._helperlib.LAPACK_BUILD_ILP64), not re-probed from the scipy
+ * install on every import: numba.np.linalg._check_lapack_int_width()
+ * instead compares that build-time choice against the scipy actually
+ * present at runtime and raises if they disagree, rather than silently
+ * switching which of these two symbol sets gets called.
  */
 
 #define F_INT NB_LAPACK_FINT

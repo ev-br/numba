@@ -295,6 +295,20 @@ MOD_INIT(_helperlib) {
     import_array();
 
     PyModule_AddObject(m, "c_helpers", build_c_helpers_dict());
+#ifndef NUMBA_LAPACK_BUILD_ILP64
+#define NUMBA_LAPACK_BUILD_ILP64 0
+#endif
+    /*
+     * Which Fortran integer width numba/_lapack.c's numba_*_32/_64 symbols
+     * were built to target by default (see NUMBA_LAPACK_ILP64 in setup.py
+     * and the "Build time environment variables" docs). Baked in as a
+     * compile-time macro (set via Extension(define_macros=...) in setup.py)
+     * rather than a loose generated .py file, so it can't drift from the
+     * actual compiled binary. numba.np.linalg reads this once and checks it
+     * against the scipy actually installed at runtime.
+     */
+    PyModule_AddIntConstant(m, "LAPACK_BUILD_ILP64",
+                            NUMBA_LAPACK_BUILD_ILP64);
     PyModule_AddIntConstant(m, "long_min", LONG_MIN);
     PyModule_AddIntConstant(m, "long_max", LONG_MAX);
     PyModule_AddIntConstant(m, "py_buffer_size", sizeof(Py_buffer));

@@ -20,6 +20,7 @@ from numba.core.errors import TypingError, NumbaTypeError, \
     NumbaPerformanceWarning
 from .arrayobj import make_array, _empty_nd_impl, array_copy
 from numba.np import numpy_support as np_support
+from numba import _helperlib
 
 ll_char = ir.IntType(8)
 ll_char_p = ll_char.as_pointer()
@@ -30,14 +31,16 @@ intp_t = cgutils.intp_t
 ll_intp_p = intp_t.as_pointer()
 
 
-def _lapack_is_ilp64():
+def _lapack_runtime_is_ilp64():
     """
-    Whether scipy.linalg.cython_blas / cython_lapack (the modules whose
-    __pyx_capi__ pointers _lapack.c resolves at call time) were built for
-    64-bit ("ILP64") Fortran integers rather than the usual 32-bit ("LP64")
-    ones. SciPy builds exactly one ABI for these two Cython modules, and
-    records which one in scipy.__config__ (see scipy.linalg.blas.HAS_LP64,
-    which reads the same flag).
+    Whether the scipy actually installed *right now* provides ILP64 (64-bit
+    Fortran integer) scipy.linalg.cython_blas / cython_lapack, as opposed to
+    the usual 32-bit ("LP64") ones. This may differ from what numba's own
+    _lapack.c wrappers were *built* for (see _LAPACK_BUILD_ILP64 below and
+    _check_lapack_int_width()) -- scipy can be upgraded/downgraded/swapped
+    independently of numba. SciPy records which ABI it built for in
+    scipy.__config__ (see scipy.linalg.blas.HAS_LP64, which reads the same
+    flag).
     """
     try:
         from scipy.__config__ import CONFIG
@@ -48,10 +51,46 @@ def _lapack_is_ilp64():
         return False
 
 
-# Whether the installed scipy's cython_blas/cython_lapack use 64-bit Fortran
-# integers. This is a single, install-wide fact about scipy, decided once
-# here rather than per-call -- see _lapack_is_ilp64().
-_LAPACK_ILP64 = _lapack_is_ilp64()
+# Which Fortran integer width numba/_lapack.c's numba_*_32/_64 symbols were
+# built to target by default (see NUMBA_LAPACK_ILP64 in the "Build time
+# environment variables" install docs, and setup.py). This is what actually
+# decides which compiled symbols/buffer dtypes we bind to below -- it is
+# fixed at build time, not re-probed on every import, and is compiled into
+# numba._helperlib itself so it can't drift from the actual binary.
+_LAPACK_BUILD_ILP64 = bool(getattr(_helperlib, "LAPACK_BUILD_ILP64", False))
+_LAPACK_ILP64 = _LAPACK_BUILD_ILP64
+
+_LAPACK_INSTALL_DOCS_URL = (
+    "https://numba.readthedocs.io/en/stable/user/installing.html"
+    "#numba-source-install-env_vars"
+)
+
+
+def _check_lapack_int_width():
+    """
+    Guard against a numba built for one Fortran integer width being used
+    against a scipy providing the other one: the compiled numba_*_32/_64
+    wrappers assume a fixed width, so calling through the wrong one is
+    silent memory corruption or wrong answers, not a clean error -- refuse
+    outright instead. Called from ensure_blas()/ensure_lapack(), once scipy
+    is confirmed importable.
+    """
+    runtime_ilp64 = _lapack_runtime_is_ilp64()
+    if runtime_ilp64 != _LAPACK_BUILD_ILP64:
+        built_as = "ILP64" if _LAPACK_BUILD_ILP64 else "LP64"
+        found_as = "ILP64" if runtime_ilp64 else "LP64"
+        raise RuntimeError(
+            f"This copy of Numba was built for {built_as} BLAS/LAPACK, but "
+            f"the scipy installed now provides {found_as} "
+            f"scipy.linalg.cython_blas/cython_lapack. Numba's compiled "
+            f"BLAS/LAPACK wrappers assume a fixed integer width and will "
+            f"produce wrong results or crash if called against the wrong "
+            f"one, so this is refused rather than attempted. Install a "
+            f"scipy matching what Numba was built for, or rebuild Numba "
+            f"with NUMBA_LAPACK_ILP64 set to match this scipy -- see "
+            f"{_LAPACK_INSTALL_DOCS_URL}."
+        )
+
 
 # Suffix on the numba_* symbol names exported by _lapack.c (see
 # _lapack_intwidth.h), selecting the matching integer width.
@@ -61,7 +100,7 @@ _LAPACK_INT_SUFFIX = "_64" if _LAPACK_ILP64 else "_32"
 def _lapack_symbol(name):
     """
     The width-suffixed C symbol name for LAPACK/BLAS wrapper `name`
-    (without its "numba_" prefix), matching the ABI of the installed scipy.
+    (without its "numba_" prefix), matching what Numba was built for.
     """
     return "numba_" + name + _LAPACK_INT_SUFFIX
 
@@ -92,6 +131,7 @@ def ensure_blas():
         import scipy.linalg.cython_blas
     except ImportError:
         raise ImportError("scipy 0.16+ is required for linear algebra")
+    _check_lapack_int_width()
 
 
 def ensure_lapack():
@@ -99,6 +139,7 @@ def ensure_lapack():
         import scipy.linalg.cython_lapack
     except ImportError:
         raise ImportError("scipy 0.16+ is required for linear algebra")
+    _check_lapack_int_width()
 
 
 def make_constant_slot(context, builder, ty, val):
