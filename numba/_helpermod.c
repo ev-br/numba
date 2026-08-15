@@ -94,22 +94,43 @@ build_c_helpers_dict(void)
     declmethod(set_pyobject_private_data);
     declmethod(reset_pyobject_private_data);
 
-    /* BLAS / LAPACK */
-    declmethod(xxgemm);
-    declmethod(xxgemv);
-    declmethod(xxdot);
-    declmethod(xxgetrf);
-    declmethod(ez_xxgetri);
-    declmethod(xxpotrf);
-    declmethod(ez_rgeev);
-    declmethod(ez_cgeev);
-    declmethod(ez_xxxevd);
-    declmethod(ez_gesdd);
-    declmethod(ez_geqrf);
-    declmethod(ez_xxgqr);
-    declmethod(ez_gelsd);
-    declmethod(xgesv);
-    declmethod(xxnrm2);
+    /*
+     * BLAS / LAPACK
+     * Each wrapper exists twice, suffixed _32 (LP64 Fortran integers,
+     * scipy's usual build) and _64 (ILP64). numba/np/linalg.py picks which
+     * suffix to bind to based on the installed scipy's actual ABI -- see
+     * _lapack_intwidth.h for why both can safely be compiled in.
+     */
+    declmethod(xxgemm_32);
+    declmethod(xxgemm_64);
+    declmethod(xxgemv_32);
+    declmethod(xxgemv_64);
+    declmethod(xxdot_32);
+    declmethod(xxdot_64);
+    declmethod(xxgetrf_32);
+    declmethod(xxgetrf_64);
+    declmethod(ez_xxgetri_32);
+    declmethod(ez_xxgetri_64);
+    declmethod(xxpotrf_32);
+    declmethod(xxpotrf_64);
+    declmethod(ez_rgeev_32);
+    declmethod(ez_rgeev_64);
+    declmethod(ez_cgeev_32);
+    declmethod(ez_cgeev_64);
+    declmethod(ez_xxxevd_32);
+    declmethod(ez_xxxevd_64);
+    declmethod(ez_gesdd_32);
+    declmethod(ez_gesdd_64);
+    declmethod(ez_geqrf_32);
+    declmethod(ez_geqrf_64);
+    declmethod(ez_xxgqr_32);
+    declmethod(ez_xxgqr_64);
+    declmethod(ez_gelsd_32);
+    declmethod(ez_gelsd_64);
+    declmethod(xgesv_32);
+    declmethod(xgesv_64);
+    declmethod(xxnrm2_32);
+    declmethod(xxnrm2_64);
 
     /* PRNG support */
     declmethod(get_py_random_state);

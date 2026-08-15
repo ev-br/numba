@@ -1,8 +1,85 @@
 /*
- * BLAS/LAPACK wrapper functions, moved out of _lapack.c verbatim (no
- * behavior change) so a subsequent change can compile this body twice,
- * once per supported Fortran integer width.
+ * Integer-width-parameterized BLAS/LAPACK wrappers.
+ *
+ * This file is not compiled on its own -- it is #include-d twice from
+ * _lapack.c: once with NB_LAPACK_FINT/NB_LAPACK_SUF set for a 32-bit
+ * ("LP64") Fortran integer, once for a 64-bit ("ILP64") one. Every
+ * function/typedef defined in here that needs a stable, addressable name
+ * (exported to Python, or referenced across the two instantiations within
+ * the same translation unit) is redirected below to a NB_LAPACK_SUF-suffixed
+ * name, so the two instantiations don't collide.
+ *
+ * Which width is actually correct is a property of the *scipy install*,
+ * not of this build: scipy.linalg.cython_blas/cython_lapack are compiled
+ * for exactly one ABI, LP64 or ILP64, recorded in
+ * scipy.__config__.CONFIG['Build Dependencies']['blas']['cython blas
+ * ilp64'] (see numba/np/linalg.py:_lapack_is_ilp64()). The raw function
+ * pointer fetched from scipy's __pyx_capi__ (in the EMIT_GET_CBLAS_FUNC /
+ * EMIT_GET_CLAPACK_FUNC getters, defined once in _lapack.c outside this
+ * file and shared between both instantiations) already matches whichever
+ * ABI scipy itself was built for; this file only decides how many bytes
+ * the *caller* reads/writes through F_INT-typed locals and by-reference
+ * arguments when invoking it. numba/np/linalg.py picks, once at import
+ * time, which of the two suffixed symbol sets to bind to.
  */
+
+#define F_INT NB_LAPACK_FINT
+
+#define cast_from_X NB_CONCAT(cast_from_X, NB_LAPACK_SUF)
+#define cdot_t NB_CONCAT(cdot_t, NB_LAPACK_SUF)
+#define cgeev_t NB_CONCAT(cgeev_t, NB_LAPACK_SUF)
+#define cgelsd_t NB_CONCAT(cgelsd_t, NB_LAPACK_SUF)
+#define cgesdd_t NB_CONCAT(cgesdd_t, NB_LAPACK_SUF)
+#define ddot_t NB_CONCAT(ddot_t, NB_LAPACK_SUF)
+#define dxnrm2_t NB_CONCAT(dxnrm2_t, NB_LAPACK_SUF)
+#define numba_ez_cgeev NB_CONCAT(numba_ez_cgeev, NB_LAPACK_SUF)
+#define numba_ez_cgelsd NB_CONCAT(numba_ez_cgelsd, NB_LAPACK_SUF)
+#define numba_ez_cgesdd NB_CONCAT(numba_ez_cgesdd, NB_LAPACK_SUF)
+#define numba_ez_cheevd NB_CONCAT(numba_ez_cheevd, NB_LAPACK_SUF)
+#define numba_ez_gelsd NB_CONCAT(numba_ez_gelsd, NB_LAPACK_SUF)
+#define numba_ez_geqrf NB_CONCAT(numba_ez_geqrf, NB_LAPACK_SUF)
+#define numba_ez_gesdd NB_CONCAT(numba_ez_gesdd, NB_LAPACK_SUF)
+#define numba_ez_rgeev NB_CONCAT(numba_ez_rgeev, NB_LAPACK_SUF)
+#define numba_ez_rgelsd NB_CONCAT(numba_ez_rgelsd, NB_LAPACK_SUF)
+#define numba_ez_rgesdd NB_CONCAT(numba_ez_rgesdd, NB_LAPACK_SUF)
+#define numba_ez_rsyevd NB_CONCAT(numba_ez_rsyevd, NB_LAPACK_SUF)
+#define numba_ez_xxgetri NB_CONCAT(numba_ez_xxgetri, NB_LAPACK_SUF)
+#define numba_ez_xxgqr NB_CONCAT(numba_ez_xxgqr, NB_LAPACK_SUF)
+#define numba_ez_xxxevd NB_CONCAT(numba_ez_xxxevd, NB_LAPACK_SUF)
+#define numba_raw_cgeev NB_CONCAT(numba_raw_cgeev, NB_LAPACK_SUF)
+#define numba_raw_cgelsd NB_CONCAT(numba_raw_cgelsd, NB_LAPACK_SUF)
+#define numba_raw_cgesdd NB_CONCAT(numba_raw_cgesdd, NB_LAPACK_SUF)
+#define numba_raw_cheevd NB_CONCAT(numba_raw_cheevd, NB_LAPACK_SUF)
+#define numba_raw_rgeev NB_CONCAT(numba_raw_rgeev, NB_LAPACK_SUF)
+#define numba_raw_rgelsd NB_CONCAT(numba_raw_rgelsd, NB_LAPACK_SUF)
+#define numba_raw_rgesdd NB_CONCAT(numba_raw_rgesdd, NB_LAPACK_SUF)
+#define numba_raw_rsyevd NB_CONCAT(numba_raw_rsyevd, NB_LAPACK_SUF)
+#define numba_raw_xgeqrf NB_CONCAT(numba_raw_xgeqrf, NB_LAPACK_SUF)
+#define numba_raw_xxgetri NB_CONCAT(numba_raw_xxgetri, NB_LAPACK_SUF)
+#define numba_raw_xxxgqr NB_CONCAT(numba_raw_xxxgqr, NB_LAPACK_SUF)
+#define numba_xgesv NB_CONCAT(numba_xgesv, NB_LAPACK_SUF)
+#define numba_xxdot NB_CONCAT(numba_xxdot, NB_LAPACK_SUF)
+#define numba_xxgemm NB_CONCAT(numba_xxgemm, NB_LAPACK_SUF)
+#define numba_xxgemv NB_CONCAT(numba_xxgemv, NB_LAPACK_SUF)
+#define numba_xxgetrf NB_CONCAT(numba_xxgetrf, NB_LAPACK_SUF)
+#define numba_xxnrm2 NB_CONCAT(numba_xxnrm2, NB_LAPACK_SUF)
+#define numba_xxpotrf NB_CONCAT(numba_xxpotrf, NB_LAPACK_SUF)
+#define rgeev_t NB_CONCAT(rgeev_t, NB_LAPACK_SUF)
+#define rgelsd_t NB_CONCAT(rgelsd_t, NB_LAPACK_SUF)
+#define rgesdd_t NB_CONCAT(rgesdd_t, NB_LAPACK_SUF)
+#define sdot_t NB_CONCAT(sdot_t, NB_LAPACK_SUF)
+#define sxnrm2_t NB_CONCAT(sxnrm2_t, NB_LAPACK_SUF)
+#define xgeqrf_t NB_CONCAT(xgeqrf_t, NB_LAPACK_SUF)
+#define xgesv_t NB_CONCAT(xgesv_t, NB_LAPACK_SUF)
+#define xheevd_t NB_CONCAT(xheevd_t, NB_LAPACK_SUF)
+#define xsyevd_t NB_CONCAT(xsyevd_t, NB_LAPACK_SUF)
+#define xxgemm_t NB_CONCAT(xxgemm_t, NB_LAPACK_SUF)
+#define xxgemv_t NB_CONCAT(xxgemv_t, NB_LAPACK_SUF)
+#define xxgetrf_t NB_CONCAT(xxgetrf_t, NB_LAPACK_SUF)
+#define xxgetri_t NB_CONCAT(xxgetri_t, NB_LAPACK_SUF)
+#define xxpotrf_t NB_CONCAT(xxpotrf_t, NB_LAPACK_SUF)
+#define xxxgqr_t NB_CONCAT(xxxgqr_t, NB_LAPACK_SUF)
+#define zdot_t NB_CONCAT(zdot_t, NB_LAPACK_SUF)
 
 
 
@@ -679,7 +756,7 @@ numba_ez_rsyevd(char kind, char jobz, char uplo, Py_ssize_t n, void *a, Py_ssize
     void *work = NULL;
     F_INT *iwork = NULL;
     all_dtypes stack_slot;
-    int stack_int = -1;
+    F_INT stack_int = -1;
 
     ENSURE_VALID_REAL_KIND(kind)
 
@@ -762,7 +839,7 @@ numba_ez_cheevd(char kind, char jobz, char uplo, Py_ssize_t n, void *a, Py_ssize
     F_INT *iwork = NULL;
     all_dtypes stack_slot1, stack_slot2;
     char uf_kind;
-    int stack_int = -1;
+    F_INT stack_int = -1;
 
     ENSURE_VALID_COMPLEX_KIND(kind)
 
@@ -1523,3 +1600,61 @@ numba_xgesv(char kind, Py_ssize_t n, Py_ssize_t nrhs, void *a, Py_ssize_t lda,
     return (int)info;
 }
 
+
+#undef F_INT
+
+#undef cast_from_X
+#undef cdot_t
+#undef cgeev_t
+#undef cgelsd_t
+#undef cgesdd_t
+#undef ddot_t
+#undef dxnrm2_t
+#undef numba_ez_cgeev
+#undef numba_ez_cgelsd
+#undef numba_ez_cgesdd
+#undef numba_ez_cheevd
+#undef numba_ez_gelsd
+#undef numba_ez_geqrf
+#undef numba_ez_gesdd
+#undef numba_ez_rgeev
+#undef numba_ez_rgelsd
+#undef numba_ez_rgesdd
+#undef numba_ez_rsyevd
+#undef numba_ez_xxgetri
+#undef numba_ez_xxgqr
+#undef numba_ez_xxxevd
+#undef numba_raw_cgeev
+#undef numba_raw_cgelsd
+#undef numba_raw_cgesdd
+#undef numba_raw_cheevd
+#undef numba_raw_rgeev
+#undef numba_raw_rgelsd
+#undef numba_raw_rgesdd
+#undef numba_raw_rsyevd
+#undef numba_raw_xgeqrf
+#undef numba_raw_xxgetri
+#undef numba_raw_xxxgqr
+#undef numba_xgesv
+#undef numba_xxdot
+#undef numba_xxgemm
+#undef numba_xxgemv
+#undef numba_xxgetrf
+#undef numba_xxnrm2
+#undef numba_xxpotrf
+#undef rgeev_t
+#undef rgelsd_t
+#undef rgesdd_t
+#undef sdot_t
+#undef sxnrm2_t
+#undef xgeqrf_t
+#undef xgesv_t
+#undef xheevd_t
+#undef xsyevd_t
+#undef xxgemm_t
+#undef xxgemv_t
+#undef xxgetrf_t
+#undef xxgetri_t
+#undef xxpotrf_t
+#undef xxxgqr_t
+#undef zdot_t

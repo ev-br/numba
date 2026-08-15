@@ -415,9 +415,32 @@ static char underlying_float_kind(char kind)
     } while(0)
 
 
-#define F_INT int
+/*
+ * The BLAS/LAPACK wrapper functions and their supporting typedefs are
+ * defined in _lapack_intwidth.h, included twice below: once producing
+ * "_32"-suffixed symbols built around a 32-bit Fortran integer (LP64,
+ * scipy's default), once producing "_64"-suffixed symbols built around a
+ * 64-bit one (ILP64). See _lapack_intwidth.h for why this is safe to
+ * share a single translation unit, and numba/np/linalg.py for how the
+ * right suffix is selected at import time based on the installed scipy.
+ */
+#define NB_CONCAT_(a, b) a ## b
+#define NB_CONCAT(a, b) NB_CONCAT_(a, b)
+
+#define NB_LAPACK_FINT npy_int32
+#define NB_LAPACK_SUF _32
 #include "_lapack_intwidth.h"
-#undef F_INT
+#undef NB_LAPACK_FINT
+#undef NB_LAPACK_SUF
+
+#define NB_LAPACK_FINT npy_int64
+#define NB_LAPACK_SUF _64
+#include "_lapack_intwidth.h"
+#undef NB_LAPACK_FINT
+#undef NB_LAPACK_SUF
+
+#undef NB_CONCAT
+#undef NB_CONCAT_
 /* undef defines and macros */
 #undef STATUS_SUCCESS
 #undef STATUS_ERROR
