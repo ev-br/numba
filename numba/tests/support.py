@@ -187,6 +187,40 @@ def expected_failure_np2(fn):
     else:
         return fn
 
+
+def expected_failure_if(cond):
+    """
+    Like unittest.expectedFailure, but only applied when `cond` is true;
+    otherwise the test is left alone. A reusable, condition-parametrized
+    version of the single-purpose expected_failure_pyXXX / _np2 helpers
+    above, for conditions that aren't worth naming their own decorator.
+    """
+    def decorator(fn):
+        return unittest.expectedFailure(fn) if cond else fn
+    return decorator
+
+
+def available_memory_bytes():
+    """
+    Best-effort lookup of currently available system memory, in bytes.
+    Returns None if it can't be determined (psutil not installed, and not
+    running on Linux where /proc/meminfo can be read directly).
+    """
+    try:
+        import psutil
+        return psutil.virtual_memory().available
+    except ImportError:
+        pass
+    if sys.platform.startswith("linux"):
+        try:
+            with open("/proc/meminfo") as f:
+                for line in f:
+                    if line.startswith("MemAvailable:"):
+                        return int(line.split()[1]) * 1024
+        except OSError:
+            pass
+    return None
+
 _msg = "SciPy needed for test"
 skip_unless_scipy = unittest.skipIf(scipy is None, _msg)
 

@@ -30,11 +30,46 @@ intp_t = cgutils.intp_t
 ll_intp_p = intp_t.as_pointer()
 
 
-# fortran int type, this needs to match the F_INT C declaration in
-# _lapack.c and is present to accommodate potential future 64bit int
-# based LAPACK use.
-F_INT_nptype = np.int32
-F_INT_nbtype = types.int32
+def _lapack_is_ilp64():
+    """
+    Whether scipy.linalg.cython_blas / cython_lapack (the modules whose
+    __pyx_capi__ pointers _lapack.c resolves at call time) were built for
+    64-bit ("ILP64") Fortran integers rather than the usual 32-bit ("LP64")
+    ones. SciPy builds exactly one ABI for these two Cython modules, and
+    records which one in scipy.__config__ (see scipy.linalg.blas.HAS_LP64,
+    which reads the same flag).
+    """
+    try:
+        from scipy.__config__ import CONFIG
+        return bool(CONFIG['Build Dependencies']['blas']['cython blas ilp64'])
+    except (ImportError, KeyError, TypeError):
+        # scipy predates this __config__ entry (pre-Meson builds); those
+        # releases only ever shipped LP64 cython_blas/cython_lapack.
+        return False
+
+
+# Whether the installed scipy's cython_blas/cython_lapack use 64-bit Fortran
+# integers. This is a single, install-wide fact about scipy, decided once
+# here rather than per-call -- see _lapack_is_ilp64().
+_LAPACK_ILP64 = _lapack_is_ilp64()
+
+# Suffix on the numba_* symbol names exported by _lapack.c (see
+# _lapack_intwidth.h), selecting the matching integer width.
+_LAPACK_INT_SUFFIX = "_64" if _LAPACK_ILP64 else "_32"
+
+
+def _lapack_symbol(name):
+    """
+    The width-suffixed C symbol name for LAPACK/BLAS wrapper `name`
+    (without its "numba_" prefix), matching the ABI of the installed scipy.
+    """
+    return "numba_" + name + _LAPACK_INT_SUFFIX
+
+
+# fortran int type, this needs to match the F_INT declaration selected in
+# _lapack.c/_lapack_intwidth.h for the numba_*_LAPACK_INT_SUFFIX symbols.
+F_INT_nptype = np.int64 if _LAPACK_ILP64 else np.int32
+F_INT_nbtype = types.int64 if _LAPACK_ILP64 else types.int32
 
 # BLAS kinds as letters
 _blas_kinds = {
@@ -89,7 +124,7 @@ class _BLAS:
                          types.intp,             # incx
                          types.CPointer(rtype))  # returned
 
-        return types.ExternalFunction("numba_xxnrm2", sig)
+        return types.ExternalFunction(_lapack_symbol("xxnrm2"), sig)
 
     @classmethod
     def numba_xxgemm(cls, dtype):
@@ -109,7 +144,7 @@ class _BLAS:
             types.CPointer(dtype),  # c
             types.intp              # ldc
         )
-        return types.ExternalFunction("numba_xxgemm", sig)
+        return types.ExternalFunction(_lapack_symbol("xxgemm"), sig)
 
 
 class _LAPACK:
@@ -130,7 +165,7 @@ class _LAPACK:
                          types.intp,                   # lda
                          types.CPointer(F_INT_nbtype)  # ipiv
                          )
-        return types.ExternalFunction("numba_xxgetrf", sig)
+        return types.ExternalFunction(_lapack_symbol("xxgetrf"), sig)
 
     @classmethod
     def numba_ez_xxgetri(cls, dtype):
@@ -140,7 +175,7 @@ class _LAPACK:
                          types.intp,                   # lda
                          types.CPointer(F_INT_nbtype)  # ipiv
                          )
-        return types.ExternalFunction("numba_ez_xxgetri", sig)
+        return types.ExternalFunction(_lapack_symbol("ez_xxgetri"), sig)
 
     @classmethod
     def numba_ez_rgeev(cls, dtype):
@@ -157,7 +192,7 @@ class _LAPACK:
                          types.CPointer(dtype),  # vr
                          types.intp              # ldvr
                          )
-        return types.ExternalFunction("numba_ez_rgeev", sig)
+        return types.ExternalFunction(_lapack_symbol("ez_rgeev"), sig)
 
     @classmethod
     def numba_ez_cgeev(cls, dtype):
@@ -173,7 +208,7 @@ class _LAPACK:
                          types.CPointer(dtype),  # vr
                          types.intp              # ldvr
                          )
-        return types.ExternalFunction("numba_ez_cgeev", sig)
+        return types.ExternalFunction(_lapack_symbol("ez_cgeev"), sig)
 
     @classmethod
     def numba_ez_xxxevd(cls, dtype):
@@ -186,7 +221,7 @@ class _LAPACK:
                          types.intp,             # lda
                          types.CPointer(wtype),  # w
                          )
-        return types.ExternalFunction("numba_ez_xxxevd", sig)
+        return types.ExternalFunction(_lapack_symbol("ez_xxxevd"), sig)
 
     @classmethod
     def numba_xxpotrf(cls, dtype):
@@ -196,7 +231,7 @@ class _LAPACK:
                          types.CPointer(dtype),  # a
                          types.intp              # lda
                          )
-        return types.ExternalFunction("numba_xxpotrf", sig)
+        return types.ExternalFunction(_lapack_symbol("xxpotrf"), sig)
 
     @classmethod
     def numba_ez_gesdd(cls, dtype):
@@ -215,7 +250,7 @@ class _LAPACK:
             types.intp              # ldvt
         )
 
-        return types.ExternalFunction("numba_ez_gesdd", sig)
+        return types.ExternalFunction(_lapack_symbol("ez_gesdd"), sig)
 
     @classmethod
     def numba_ez_geqrf(cls, dtype):
@@ -227,7 +262,7 @@ class _LAPACK:
             types.intp,             # lda
             types.CPointer(dtype),  # tau
         )
-        return types.ExternalFunction("numba_ez_geqrf", sig)
+        return types.ExternalFunction(_lapack_symbol("ez_geqrf"), sig)
 
     @classmethod
     def numba_ez_xxgqr(cls, dtype):
@@ -240,7 +275,7 @@ class _LAPACK:
             types.intp,             # lda
             types.CPointer(dtype),  # tau
         )
-        return types.ExternalFunction("numba_ez_xxgqr", sig)
+        return types.ExternalFunction(_lapack_symbol("ez_xxgqr"), sig)
 
     @classmethod
     def numba_ez_gelsd(cls, dtype):
@@ -258,7 +293,7 @@ class _LAPACK:
             types.float64,              # rcond
             types.CPointer(types.intc)  # rank
         )
-        return types.ExternalFunction("numba_ez_gelsd", sig)
+        return types.ExternalFunction(_lapack_symbol("ez_gelsd"), sig)
 
     @classmethod
     def numba_xgesv(cls, dtype):
@@ -272,7 +307,7 @@ class _LAPACK:
             types.CPointer(dtype),         # b
             types.intp                     # ldb
         )
-        return types.ExternalFunction("numba_xgesv", sig)
+        return types.ExternalFunction(_lapack_symbol("xgesv"), sig)
 
 
 @contextlib.contextmanager
@@ -347,7 +382,8 @@ def call_xxdot(context, builder, conjugate, dtype,
                            [ll_char, ll_char, intp_t,    # kind, conjugate, n
                             ll_void_p, ll_void_p, ll_void_p,  # a, b, out
                             ])
-    fn = cgutils.get_or_insert_function(builder.module, fnty, "numba_xxdot")
+    fn = cgutils.get_or_insert_function(builder.module, fnty,
+                                        _lapack_symbol("xxdot"))
 
     kind = get_blas_kind(dtype)
     kind_val = ir.Constant(ll_char, ord(kind))
@@ -371,7 +407,8 @@ def call_xxgemv(context, builder, do_trans,
                             ll_void_p, ll_void_p, intp_t,     # alpha, a, lda
                             ll_void_p, ll_void_p, ll_void_p,  # x, beta, y
                             ])
-    fn = cgutils.get_or_insert_function(builder.module, fnty, "numba_xxgemv")
+    fn = cgutils.get_or_insert_function(builder.module, fnty,
+                                        _lapack_symbol("xxgemv"))
 
     dtype = m_type.dtype
     alpha = make_constant_slot(context, builder, dtype, 1.0)
@@ -412,7 +449,8 @@ def call_xxgemm(context, builder,
                             ll_void_p, intp_t, ll_void_p,  # b, ldb, beta
                             ll_void_p, intp_t,             # c, ldc
                             ])
-    fn = cgutils.get_or_insert_function(builder.module, fnty, "numba_xxgemm")
+    fn = cgutils.get_or_insert_function(builder.module, fnty,
+                                        _lapack_symbol("xxgemm"))
 
     m, k = x_shapes
     _k, n = y_shapes

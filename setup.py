@@ -180,6 +180,7 @@ def get_ext_modules():
                               depends=["numba/_pymodule.h",
                                        "numba/_helperlib.c",
                                        "numba/_lapack.c",
+                                       "numba/_lapack_intwidth.h",
                                        "numba/_random.c",
                                        "numba/mathnames.inc",
                                        ],
