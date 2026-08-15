@@ -26,6 +26,38 @@ min_numpy_run_version = "1.22"
 min_llvmlite_version = "0.50.0dev0"
 max_llvmlite_version = "0.51"
 
+
+def _detect_lapack_ilp64():
+    """
+    Decide, at build time, which Fortran integer width numba's BLAS/LAPACK
+    C wrappers (numba/_lapack.c, numba/_lapack_intwidth.h) should be built
+    to target by default. See NUMBA_LAPACK_ILP64 in the "Build time
+    environment variables" section of the install docs.
+
+    Priority:
+      1. The NUMBA_LAPACK_ILP64 env var, if set, wins outright.
+      2. Otherwise, probe the scipy present in *this* (build) environment.
+      3. If scipy isn't importable at build time either, fall back to LP64.
+
+    The result is baked into the compiled numba._helperlib extension (see
+    ext_helperlib's define_macros below), not just written to a loose .py
+    file, so it can't silently drift from the actual compiled binary.
+    numba.np.linalg reads it back once and checks it against whichever
+    scipy is actually installed at runtime, raising rather than silently
+    mismatching if they disagree.
+    """
+    override = os.environ.get("NUMBA_LAPACK_ILP64")
+    if override is not None:
+        return override.strip().lower() not in ("", "0", "false", "no")
+    try:
+        from scipy.__config__ import CONFIG
+        return bool(CONFIG['Build Dependencies']['blas']['cython blas ilp64'])
+    except Exception:
+        return False
+
+
+lapack_build_ilp64 = _detect_lapack_ilp64()
+
 if sys.platform.startswith('linux'):
     # Patch for #2555 to make wheels without libpython
     sysconfig.get_config_vars()['Py_ENABLE_SHARED'] = 0
@@ -174,6 +206,10 @@ def get_ext_modules():
                                        "numba/cext/listobject.c",
                                        "numba/cext/setobject.c",
                                        ],
+                              define_macros=[
+                                  ("NUMBA_LAPACK_BUILD_ILP64",
+                                   int(lapack_build_ilp64)),
+                              ],
                               # numba/_random.c needs pthreads
                               extra_link_args=install_name_tool_fixer +
                               extra_link_args,

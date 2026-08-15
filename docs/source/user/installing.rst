@@ -151,6 +151,27 @@ otherwise build by default along with information on configuration options.
   variable to provide the location of the TBB installation. For more
   information about setting ``TBBROOT`` see the `Intel documentation <https://software.intel.com/content/www/us/en/develop/documentation/advisor-user-guide/top/appendix/adding-parallelism-to-your-program/adding-the-parallel-framework-to-your-build-environment/defining-the-tbbroot-environment-variable.html>`_.
 
+.. envvar:: NUMBA_LAPACK_ILP64 (default: not set)
+
+  Selects, at build time, whether Numba's BLAS/LAPACK C wrappers are built
+  to call through to a 64-bit ("ILP64") Fortran integer ABI rather than the
+  usual 32-bit ("LP64") one. This must match the ABI of
+  ``scipy.linalg.cython_blas`` / ``cython_lapack`` at *runtime*, not just at
+  build time -- a mismatch produces wrong results or a crash rather than a
+  clean error, so Numba checks this the first time BLAS/LAPACK support is
+  used and raises if the two disagree.
+
+  * If set to a non-empty value other than ``0``, ``false``, or ``no``,
+    ILP64 is forced on, regardless of the scipy present while building.
+  * If set to ``0``, ``false``, or ``no``, LP64 is forced on.
+  * If not set (default), Numba probes the scipy present in the *build*
+    environment and matches it; if scipy isn't importable at build time at
+    all, it falls back to LP64.
+
+  The choice made is recorded in the built package (it cannot drift from
+  the compiled binary independently) and can be inspected via ``numba -s``,
+  under "SciPy / LAPACK Information".
+
 .. _numba-source-install-check:
 
 Dependency List
